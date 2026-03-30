@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+
+  # ─────────────────────────────────────────
+  # BACKEND — Node.js + Express API
+  # ─────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend        # look for Dockerfile inside ./backend folder
+      dockerfile: Dockerfile
+    container_name: studytree-backend
+    ports:
+      - "5000:5000"             # host:container — access via localhost:5000
+    env_file:
+      - ./backend/.env          # load your .env file (MONGO_URI etc.)
+    volumes:
+      - backend-uploads:/app/uploads  # persist uploaded files across restarts
+    restart: unless-stopped     # auto-restart if container crashes
+
+  # ─────────────────────────────────────────
+  # FRONTEND — React (built) served by Nginx
+  # ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend       # look for Dockerfile inside ./frontend folder
+      dockerfile: Dockerfile
+    container_name: studytree-frontend
+    ports:
+      - "80:80"                 # access the app at http://localhost (no port needed)
+    depends_on:
+      - backend                 # start backend before frontend
+
+# ─────────────────────────────────────────
+# VOLUMES — named volumes managed by Docker
+# ─────────────────────────────────────────
+volumes:
+  backend-uploads:
