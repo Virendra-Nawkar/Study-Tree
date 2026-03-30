@@ -400,18 +400,33 @@ const processYouTubeLecture = async (lectureId, youtubeUrl, title) => {
 };
 
 app.post('/api/upload', upload.single('video'), async (req, res) => {
-    const lecture = new Lecture({ title: req.body.title || req.file.originalname, videoPath: req.file.path, source: 'file' });
-    await lecture.save();
-    processLecture(lecture._id, lecture.videoPath, lecture.title);
-    res.json({ message: 'Processing started!', lectureId: lecture._id });
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No video file provided.' });
+        const lecture = new Lecture({ title: req.body.title || req.file.originalname, videoPath: req.file.path, source: 'file' });
+        await lecture.save();
+        processLecture(lecture._id, lecture.videoPath, lecture.title);
+        res.json({ message: 'Processing started!', lectureId: lecture._id });
+    } catch (error) {
+        console.error('Upload error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.post('/api/upload-youtube', async (req, res) => {
-    const { title, youtubeUrl } = req.body;
-    const lecture = new Lecture({ title, youtubeUrl, source: 'youtube' });
-    await lecture.save();
-    processYouTubeLecture(lecture._id, youtubeUrl, title);
-    res.json({ message: 'Processing started!', lectureId: lecture._id });
+    try {
+        const { title, youtubeUrl } = req.body;
+        if (!title || !title.trim()) return res.status(400).json({ error: 'Lecture title is required.' });
+        if (!youtubeUrl || !youtubeUrl.trim()) return res.status(400).json({ error: 'YouTube URL is required.' });
+        const ytPattern = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/;
+        if (!ytPattern.test(youtubeUrl)) return res.status(400).json({ error: 'Invalid YouTube URL. Use a link like https://www.youtube.com/watch?v=...' });
+        const lecture = new Lecture({ title: title.trim(), youtubeUrl, source: 'youtube' });
+        await lecture.save();
+        processYouTubeLecture(lecture._id, youtubeUrl, title.trim());
+        res.json({ message: 'Processing started!', lectureId: lecture._id });
+    } catch (error) {
+        console.error('YouTube upload error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/api/lectures', async (req, res) => res.json(await Lecture.find().sort({ uploadDate: -1 })));
