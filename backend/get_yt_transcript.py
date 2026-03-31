@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 import sys
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
 def get_transcript(video_id):
     try:
-        # Try English first, then any available language
+        api = YouTubeTranscriptApi()
         try:
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+            # Try fetching English first
+            fetched = api.fetch(video_id, languages=['en'])
         except Exception:
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        text = ' '.join([entry['text'] for entry in transcript_list])
+            # Fallback to any available language
+            fetched = api.fetch(video_id)
+        # Support both old list-of-dicts and new FetchedTranscript object
+        if hasattr(fetched, 'snippets'):
+            text = ' '.join([s.text for s in fetched.snippets])
+        else:
+            text = ' '.join([entry['text'] for entry in fetched])
         print(text)
         sys.exit(0)
-    except TranscriptsDisabled:
-        print("ERROR: Transcripts are disabled for this video.", file=sys.stderr)
-        sys.exit(1)
-    except NoTranscriptFound:
-        print("ERROR: No transcript found for this video.", file=sys.stderr)
-        sys.exit(1)
     except Exception as e:
         print(f"ERROR: {str(e)}", file=sys.stderr)
         sys.exit(1)
