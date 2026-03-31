@@ -11,6 +11,7 @@
 # Secret files for both backend and frontend.
 /backend/.env
 /frontend/.env
+/backend/cookies.txt
 
 # ==================================
 # User-Generated Content

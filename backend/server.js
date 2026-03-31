@@ -74,14 +74,20 @@ const upload = multer({ storage });
 const downloadYouTubeVideo = (url, lectureId) => new Promise((resolve, reject) => {
     const videoPath = `uploads/${lectureId}-youtube.mp4`;
     console.log(`📺 Downloading YouTube video with yt-dlp: ${url}`);
-    const ytdlp = spawn('yt-dlp', [
+    const cookiesPath = '/app/cookies.txt';
+    const ytdlpArgs = [
         '--extractor-args', 'youtube:player_client=android,web',
         '--no-check-certificates',
         '--no-playlist',
         '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/best[height<=720]',
         '-o', videoPath,
-        url
-    ]);
+    ];
+    if (fs.existsSync(cookiesPath)) {
+        ytdlpArgs.push('--cookies', cookiesPath);
+        console.log('🍪 Using YouTube cookies for authentication');
+    }
+    ytdlpArgs.push(url);
+    const ytdlp = spawn('yt-dlp', ytdlpArgs);
     ytdlp.stdout.on('data', (data) => console.log(`yt-dlp: ${data}`));
     ytdlp.stderr.on('data', (data) => console.error(`yt-dlp stderr: ${data}`));
     ytdlp.on('close', (code) => {
