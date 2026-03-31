@@ -87,8 +87,9 @@ const downloadYouTubeVideo = (url, lectureId) => new Promise((resolve, reject) =
     const proxyHost = process.env.PROXY_HOST;
     const proxyPort = process.env.PROXY_PORT;
     if (proxyUser && proxyPass && proxyHost && proxyPort) {
-        ytdlpArgs.push('--proxy', `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`);
-        console.log(`🌐 Using proxy for download: ${proxyHost}:${proxyPort}`);
+        const proxyType = process.env.PROXY_TYPE || 'http';
+        ytdlpArgs.push('--proxy', `${proxyType}://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`);
+        console.log(`🌐 Using proxy for download: ${proxyType}://${proxyHost}:${proxyPort}`);
     }
     ytdlpArgs.push(url);
     const ytdlp = spawn('yt-dlp', ytdlpArgs);
