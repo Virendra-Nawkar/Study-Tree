@@ -18,7 +18,7 @@ WORKDIR /app
 # Install ffmpeg, python3, pip, yt-dlp and whisper
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg python3 python3-pip python3-setuptools curl && \
-    pip3 install --no-cache-dir --break-system-packages yt-dlp openai-whisper && \
+    pip3 install --no-cache-dir --break-system-packages "yt-dlp[default]" whisper-ctranslate2 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
