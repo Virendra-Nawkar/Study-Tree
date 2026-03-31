@@ -71,34 +71,50 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-const downloadYouTubeVideo = (url, lectureId) => new Promise((resolve, reject) => {
-    const videoPath = `uploads/${lectureId}-youtube.mp4`;
-    console.log(`📺 Downloading YouTube video with yt-dlp: ${url}`);
-    const cookiesPath = '/app/cookies.txt';
-    const ytdlpArgs = [
-        '--extractor-args', 'youtube:player_client=android,web',
-        '--no-check-certificates',
-        '--no-playlist',
-        '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4/best[height<=720]',
-        '-o', videoPath,
-    ];
-    if (fs.existsSync(cookiesPath)) {
-        ytdlpArgs.push('--cookies', cookiesPath);
-        console.log('🍪 Using YouTube cookies for authentication');
-    }
-    ytdlpArgs.push(url);
-    const ytdlp = spawn('yt-dlp', ytdlpArgs);
-    ytdlp.stdout.on('data', (data) => console.log(`yt-dlp: ${data}`));
-    ytdlp.stderr.on('data', (data) => console.error(`yt-dlp stderr: ${data}`));
-    ytdlp.on('close', (code) => {
-        if (code === 0) {
-            console.log('✅ YouTube video downloaded successfully.');
-            resolve(videoPath);
+const extractYouTubeId = (url) => {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/);
+    return match ? match[1] : null;
+};
+
+const getYouTubeTranscript = (videoId) => new Promise((resolve, reject) => {
+    console.log(`📝 Fetching YouTube transcript for: ${videoId}`);
+    const py = spawn('python3', ['/app/get_yt_transcript.py', videoId]);
+    let output = '';
+    let errorOutput = '';
+    py.stdout.on('data', (data) => { output += data.toString(); });
+    py.stderr.on('data', (data) => { errorOutput += data.toString(); });
+    py.on('close', (code) => {
+        if (code === 0 && output.trim()) {
+            console.log('✅ Transcript fetched successfully from YouTube.');
+            resolve(output.trim());
         } else {
-            reject(new Error(`yt-dlp failed with code ${code}`));
+            reject(new Error(errorOutput || 'Failed to get YouTube transcript'));
         }
     });
-    ytdlp.on('error', (err) => reject(new Error(`Failed to start yt-dlp: ${err.message}`)));
+    py.on('error', (err) => reject(new Error(`Failed to start python3: ${err.message}`)));
+});
+
+const downloadYouTubeThumbnail = (videoId, lectureId) => new Promise((resolve, reject) => {
+    const framesDir = `uploads/frames_${lectureId}`;
+    if (!fs.existsSync(framesDir)) fs.mkdirSync(framesDir);
+    const thumbPath = path.join(framesDir, 'slide_001.jpg');
+    const webPath = `/frames_${lectureId}/slide_001.jpg`;
+    const url = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+    const file = fs.createWriteStream(thumbPath);
+    const https = require('https');
+    https.get(url, (res) => {
+        if (res.statusCode === 200) {
+            res.pipe(file);
+            file.on('finish', () => { file.close(); resolve(webPath); });
+        } else {
+            // fallback to hqdefault
+            const fallback = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+            https.get(fallback, (res2) => {
+                res2.pipe(file);
+                file.on('finish', () => { file.close(); resolve(webPath); });
+            }).on('error', reject);
+        }
+    }).on('error', reject);
 });
 
 const transcribeWithWhisper = (audioPath) => new Promise((resolve, reject) => {
@@ -402,10 +418,31 @@ const processLecture = async (lectureId, videoPath, title) => {
 
 const processYouTubeLecture = async (lectureId, youtubeUrl, title) => {
     try {
-        await Lecture.findByIdAndUpdate(lectureId, { processingStage: 'downloading' });
-        const videoPath = await downloadYouTubeVideo(youtubeUrl, lectureId);
-        await Lecture.findByIdAndUpdate(lectureId, { videoPath });
-        await processLecture(lectureId, videoPath, title);
+        const videoId = extractYouTubeId(youtubeUrl);
+        if (!videoId) throw new Error('Could not extract YouTube video ID from URL.');
+
+        // Step 1: Get transcript directly from YouTube (no video download needed)
+        await Lecture.findByIdAndUpdate(lectureId, { processingStage: 'transcribing' });
+        const rawTranscript = await getYouTubeTranscript(videoId);
+        const transcript = await formatTranscript(rawTranscript);
+        const transcriptHtml = String(await remark().use(html).process(transcript));
+
+        // Step 2: Generate summary and quiz from transcript
+        await Lecture.findByIdAndUpdate(lectureId, { processingStage: 'summarizing', transcriptMd: transcript, transcriptHtml });
+        const summary = await generateSummary(transcript);
+        const summaryHtml = String(await remark().use(html).process(summary));
+        const quizzes = await generateQuizzes(transcript);
+
+        // Step 3: Download thumbnail as the slide
+        await Lecture.findByIdAndUpdate(lectureId, { processingStage: 'extracting_slides' });
+        const thumbWebPath = await downloadYouTubeThumbnail(videoId, lectureId);
+        const slides = [{ timestamp: 0, image: thumbWebPath }];
+
+        await Lecture.findByIdAndUpdate(lectureId, {
+            summaryMd: summary, summaryHtml, quizzes, slides,
+            processingStage: 'complete', processingError: null
+        });
+        console.log(`🎉 YouTube Processing Complete! Quizzes: ${quizzes.length}`);
     } catch (error) {
         console.error(`❌ YOUTUBE PROCESSING ERROR:`, error.message);
         await Lecture.findByIdAndUpdate(lectureId, { processingError: error.message, processingStage: 'failed' });
