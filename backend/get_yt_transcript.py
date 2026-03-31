@@ -18,7 +18,7 @@ def get_transcript(video_id):
                 http_url=f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}",
                 https_url=f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
             )
-            api = YouTubeTranscriptApi(proxies=proxy_config)
+            api = YouTubeTranscriptApi(proxy_config=proxy_config)
         else:
             api = YouTubeTranscriptApi()
 
