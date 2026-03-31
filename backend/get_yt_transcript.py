@@ -22,9 +22,11 @@ def get_transcript(video_id):
         else:
             api = YouTubeTranscriptApi()
 
+        import time
         try:
             fetched = api.fetch(video_id, languages=['en'])
         except Exception:
+            time.sleep(3)
             fetched = api.fetch(video_id)
 
         if hasattr(fetched, 'snippets'):
