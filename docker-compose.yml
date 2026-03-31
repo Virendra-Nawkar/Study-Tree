@@ -11,7 +11,7 @@ services:
       dockerfile: Dockerfile
     container_name: studytree-backend
     ports:
-      - "5000:5000"             # host:container — access via localhost:5000
+      - "81:5000"               # backend on port 81 (port 5000 is blocked)
     env_file:
       - ./backend/.env          # load your .env file (MONGO_URI etc.)
     volumes:
