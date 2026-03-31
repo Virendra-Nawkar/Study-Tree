@@ -18,8 +18,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install ffmpeg system package (required by fluent-ffmpeg dependency)
-RUN apk add --no-cache ffmpeg
+# Install system dependencies: ffmpeg, python3, pip (for yt-dlp and whisper)
+RUN apk add --no-cache ffmpeg python3 py3-pip py3-setuptools && \
+    pip3 install --no-cache-dir --break-system-packages yt-dlp openai-whisper
 
 # Copy production node_modules from Stage 1
 COPY --from=deps /app/node_modules ./node_modules
