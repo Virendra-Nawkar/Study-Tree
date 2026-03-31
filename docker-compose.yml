@@ -16,6 +16,7 @@ services:
       - ./backend/.env          # load your .env file (MONGO_URI etc.)
     volumes:
       - backend-uploads:/app/uploads  # persist uploaded files across restarts
+      - ./backend/cookies.txt:/app/cookies.txt:ro  # YouTube cookies for yt-dlp
     restart: unless-stopped     # auto-restart if container crashes
 
   # ─────────────────────────────────────────
